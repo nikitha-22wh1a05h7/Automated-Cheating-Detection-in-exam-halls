@@ -11,7 +11,6 @@ from collections import defaultdict
 st.set_page_config(page_title="Exam Cheating Detection", layout="wide")
 st.title("🚨 Exam Cheating Detection System")
 
-# ── Constants ──────────────────────────────────────────────────────────────
 POSE_MODEL = "yolov8n-pose.pt"
 OBJ_MODEL  = "yolov8n.pt"
 
@@ -27,7 +26,6 @@ COOLDOWN_FRAMES    = 50
 SLOW_FACTOR        = 0.3
 
 
-# ── Helper functions ───────────────────────────────────────────────────────
 def dist(a, b):
     return math.hypot(a[0] - b[0], a[1] - b[1])
 
@@ -55,7 +53,6 @@ def assign_seat(center):
     return new_id
 
 
-# ── Result renderer ────────────────────────────────────────────────────────
 def render_results():
     """
     Draws the full results UI from session state.
@@ -68,7 +65,6 @@ def render_results():
     out_path        = st.session_state.out_path
     fps             = st.session_state.video_fps
 
-    # ── Video playback & download ──────────────────────────────────
     st.header("🎬 Annotated Video")
     if os.path.exists(out_path):
         st.video(out_path)
@@ -83,7 +79,6 @@ def render_results():
     else:
         st.error("❌ Output video not found")
 
-    # ── Cheating frequency chart (from 29.py) ─────────────────────
     st.header("📊 Cheating Frequency Chart")
 
     all_student_ids = sorted(seats.keys())
@@ -110,12 +105,11 @@ def render_results():
             str(val), va="center", ha="left", fontsize=9
         )
 
-    ax.invert_yaxis()   # Student 1 at top
+    ax.invert_yaxis()   
     plt.tight_layout()
     st.pyplot(fig)
     plt.close(fig)
 
-    # ── CSV report ────────────────────────────────────────────────
     if events:
         df = pd.DataFrame(events, columns=["Frame", "Type", "Student", "Target"])
         df["Student"] = df["Student"].apply(
@@ -135,28 +129,18 @@ def render_results():
         st.success("✅ No cheating detected")
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# TOP-LEVEL ROUTING
-# ══════════════════════════════════════════════════════════════════════════
-
-# Always show uploader + process button (even after results are displayed)
 uploaded_video = st.file_uploader(
     "Upload Exam Hall Video",
     type=["mp4", "avi", "mov"]
 )
 process_btn = st.button("▶️ Process Video")
 
-# If results exist, render them below the uploader on every rerun
-# (including reruns triggered by download-button clicks)
 if st.session_state.get("processing_done"):
     render_results()
 
-# Only proceed to processing if both uploader and button are active
 if not (uploaded_video and process_btn):
     st.stop()
 
-# ── Processing ─────────────────────────────────────────────────────────────
-# Reset seat state for a fresh run
 st.session_state.seats        = {}
 st.session_state.next_seat_id = 1
 st.session_state.processing_done = False
@@ -206,7 +190,6 @@ while cap.isOpened():
 
     frame = cv2.resize(frame, (480, 270))
 
-    # ── Pose estimation ──────────────────────────────────────────
     pose_res = pose_model.predict(frame, conf=0.5, verbose=False)[0]
     persons  = []
 
@@ -248,7 +231,6 @@ while cap.isOpened():
         DIST_THRESHOLD = int(avg * 1.5)
         ROW_THRESHOLD  = int(avg * 0.8)
 
-    # ── Object detection (phones) ────────────────────────────────
     if frame_id % PHONE_DETECT_GAP == 0:
         obj_res = obj_model.predict(frame, conf=0.3, verbose=False)[0]
         phones  = []
@@ -260,7 +242,6 @@ while cap.isOpened():
     else:
         phones = phones_last
 
-    # ── Phone detection ──────────────────────────────────────────
     for p in persons:
         for ph in phones:
             if ph[1] < p["nose"][1]:
@@ -277,7 +258,6 @@ while cap.isOpened():
                     events.append([frame_id, "PHONE", p["seat_id"], "-"])
                     last_event_frame[key] = frame_id
 
-    # ── Peeking / copying detection ──────────────────────────────
     for a in persons:
         for b in persons:
             if a["seat_id"] == b["seat_id"]:
@@ -303,7 +283,6 @@ while cap.isOpened():
                     events.append([frame_id, "PEEKING", a["seat_id"], b["seat_id"]])
                     last_event_frame[key] = frame_id
 
-    # ── Annotate frame and write to video ────────────────────────
     display_frame = frame.copy()
     for p in persons:
         sid         = p["seat_id"]
@@ -321,7 +300,7 @@ while cap.isOpened():
 cap.release()
 out.release()
 
-# ── Persist everything in session state ───────────────────────────────────
+
 st.session_state.cheat_frequency = dict(cheat_frequency)
 st.session_state.events          = events
 st.session_state.out_path        = out_path
